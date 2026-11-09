@@ -1,0 +1,20 @@
+services:
+  printful-mcp:
+    image: ${PRINTFUL_MCP_IMAGE:-ghcr.io/hraph/printful-mcp:latest}
+    build:
+      context: .
+    container_name: printful-mcp
+    restart: unless-stopped
+    # PRINTFUL_API_KEY (required) and PRINTFUL_STORE_ID (optional) come from .env
+    env_file:
+      - .env
+    environment:
+      MCP_TRANSPORT: ${MCP_TRANSPORT:-http}
+      MCP_HOST: 0.0.0.0
+      MCP_PORT: 8000
+      # Optional: restrict accepted Host headers, e.g. "localhost:*,printful-mcp:*"
+      MCP_ALLOWED_HOSTS: ${MCP_ALLOWED_HOSTS:-}
+    ports:
+      # Bound to localhost by default: the server has no authentication.
+      # Use "8000:8000" only behind a reverse proxy / on a trusted network.
+      - "${MCP_BIND:-127.0.0.1}:${MCP_PUBLIC_PORT:-8000}:8000"

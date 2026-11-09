@@ -6,7 +6,7 @@
 
 Connect Printful's powerful API to Claude, Cursor, and other AI assistants through the Model Context Protocol.
 
-[**📚 Quick Start**](#installation) • [**🔧 Configuration**](#configuration) • [**🚀 Examples**](#usage-examples) • [**📖 Documentation**](QUICKSTART.md)
+[**📚 Quick Start**](#installation) • [**🐳 Docker**](#-docker) • [**🔧 Configuration**](#configuration) • [**🚀 Examples**](#usage-examples) • [**📖 Documentation**](QUICKSTART.md)
 
 ---
 
@@ -62,6 +62,7 @@ Connect Printful's powerful API to Claude, Cursor, and other AI assistants throu
 - ✅ Works with Claude Desktop
 - ✅ Works with Cursor IDE
 - ✅ stdio + HTTP transports
+- ✅ Docker image & Compose ready
 - ✅ No hosting required
 
 </td>
@@ -154,6 +155,130 @@ Add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
 </details>
 
 ✅ **That's it!** Restart your AI assistant and start using Printful tools.
+
+</details>
+
+---
+
+## 🐳 Docker
+
+Run the server in a container instead of installing Python locally. The image runs the **HTTP (streamable) transport** on port `8000` by default, as a non-root user, and is published to GitHub Container Registry by CI.
+
+<details open>
+<summary><b>⚡ With Docker Compose (recommended)</b></summary>
+
+<br>
+
+```bash
+git clone https://github.com/Hraph/printful-mcp.git
+cd printful-mcp
+cp .env.example .env      # then set PRINTFUL_API_KEY
+docker compose up -d      # pulls ghcr.io/hraph/printful-mcp:latest
+```
+
+The MCP endpoint is then available at **`http://localhost:8000/mcp`**.
+
+- Build locally instead of pulling: `docker compose up -d --build`
+- Logs: `docker compose logs -f` • Stop: `docker compose down`
+
+</details>
+
+<details>
+<summary><b>🐋 With plain Docker</b></summary>
+
+<br>
+
+```bash
+docker run -d --name printful-mcp -p 127.0.0.1:8000:8000 \
+  -e PRINTFUL_API_KEY=your-api-key-here \
+  ghcr.io/hraph/printful-mcp:latest
+```
+
+Build it yourself: `docker build -t printful-mcp .`
+
+</details>
+
+<details>
+<summary><b>🔗 Connect your AI assistant to the container</b></summary>
+
+<br>
+
+**Cursor** (`~/.cursor/mcp.json`):
+```json
+{
+  "mcpServers": {
+    "printful": { "url": "http://localhost:8000/mcp" }
+  }
+}
+```
+
+**Claude Code:**
+```bash
+claude mcp add --transport http printful http://localhost:8000/mcp
+```
+
+**Claude Desktop** (via the [`mcp-remote`](https://www.npmjs.com/package/mcp-remote) bridge):
+```json
+{
+  "mcpServers": {
+    "printful": {
+      "command": "npx",
+      "args": ["-y", "mcp-remote", "http://localhost:8000/mcp"]
+    }
+  }
+}
+```
+
+**stdio inside Docker** (no port, container started on demand by the client):
+```json
+{
+  "mcpServers": {
+    "printful": {
+      "command": "docker",
+      "args": ["run", "--rm", "-i", "-e", "PRINTFUL_API_KEY", "ghcr.io/hraph/printful-mcp:latest", "--transport", "stdio"],
+      "env": { "PRINTFUL_API_KEY": "your-api-key-here" }
+    }
+  }
+}
+```
+
+</details>
+
+<details>
+<summary><b>⚙️ Environment variables</b></summary>
+
+<br>
+
+| Variable | Default (image) | Description |
+|----------|-----------------|-------------|
+| `PRINTFUL_API_KEY` | — (required) | Printful API token |
+| `PRINTFUL_STORE_ID` | — | Store ID for account-level tokens |
+| `MCP_TRANSPORT` | `http` | `http`, `sse` or `stdio` |
+| `MCP_HOST` | `0.0.0.0` | Bind address inside the container |
+| `MCP_PORT` | `8000` | Port inside the container |
+| `MCP_ALLOWED_HOSTS` | *(empty)* | Comma-separated `Host` headers to accept (DNS-rebinding protection), e.g. `localhost:*,printful-mcp:*`. Empty = no check |
+| `MCP_BIND` / `MCP_PUBLIC_PORT` | `127.0.0.1` / `8000` | Compose only: host interface/port the container is published on |
+
+The same `MCP_*` variables also work outside Docker as defaults for `python -m printful_mcp`.
+
+> ⚠️ **Security:** the server has no authentication and uses your Printful key for every request. Compose publishes it on `127.0.0.1` only; if you expose it more widely, put it behind a reverse proxy with authentication and set `MCP_ALLOWED_HOSTS`.
+
+</details>
+
+<details>
+<summary><b>🏗️ CI / published images</b></summary>
+
+<br>
+
+The [`Docker image` workflow](.github/workflows/docker.yml) builds the image on every push and pull request, smoke-tests it (MCP `initialize` over HTTP), and pushes multi-arch images (`linux/amd64`, `linux/arm64`) to `ghcr.io/hraph/printful-mcp`:
+
+| Event | Tags |
+|-------|------|
+| Push to `main` | `latest`, `main`, `sha-xxxxxxx` |
+| Tag `v1.2.3` | `1.2.3`, `1.2`, `sha-xxxxxxx` |
+| Pull request | built and tested, not pushed |
+
+> The first published package is private by default on GHCR: make it public under *GitHub → Packages → printful-mcp → Package settings* if you want to pull it without logging in.
 
 </details>
 
